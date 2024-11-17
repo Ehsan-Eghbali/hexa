@@ -51,7 +51,7 @@ This application is built following the **Hexagonal Architecture (Ports and Adap
 
 1. **Clone the Repository**:
    ```bash
-   git clone https://github.com/Ehsan-Eghbali/hexagonal.git
+   git clone https://github.com/Ehsan-Eghbali/hexa.git
    cd hexagonal 
    ```
 2. **Set Up Redis: Ensure Redis is installed and running locally  or use Docker to run PostgreSQL.**
