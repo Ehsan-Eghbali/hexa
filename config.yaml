@@ -1,0 +1,17 @@
+app :
+  name : Hexagonal
+  port: 8082
+  debug: true
+
+databases:
+  - type: "postgres"
+    host: 127.0.0.1
+    port: 5432
+    name: hexa_db
+    user: admin
+    password: admin
+
+  - type: "redis"
+    host: 127.0.0.1
+    port: 6379
+    password:
