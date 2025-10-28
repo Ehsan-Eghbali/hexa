@@ -1,0 +1,11 @@
+<include>
+    <extension name="outbound_to_asiatech">
+        <condition field="destination_number" expression="^(\d{10,11})$">
+            <action application="bridge" data="sofia/gateway/asiatech/$1"/>
+        </condition>
+
+        <condition field="destination_number" expression="^9(\d{10,11})$">
+            <action application="bridge" data="sofia/gateway/asiatech/$1"/>
+        </condition>
+    </extension>
+</include>

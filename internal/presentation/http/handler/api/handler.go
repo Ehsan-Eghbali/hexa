@@ -2,16 +2,16 @@ package api
 
 import (
 	"context"
+	"dariush/config"
+	"dariush/internal/presentation/http/middleware"
 	"errors"
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
-	"hexagonal/internal/adapter/http/middleware"
-	"hexagonal/internal/core/infrastructure/config"
-	"hexagonal/internal/core/service/taskSRV"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -22,23 +22,18 @@ const (
 )
 
 type Handler struct {
-	Cfg         *config.Config
-	TaskService *taskSRV.TaskService
-	httpServer  *http.Server
+	httpServer *http.Server
 }
 
 // CreateHandler creates a new instance of the Handler
-func CreateHandler(cfg *config.Config, taskService *taskSRV.TaskService) *Handler {
-	return &Handler{
-		Cfg:         cfg,
-		TaskService: taskService,
-	}
+func CreateHandler() *Handler {
+	return &Handler{}
 }
 
 // SetupRouter initializes the Gin router and applies middlewares
 func (h *Handler) SetupRouter() *gin.Engine {
 
-	gin.SetMode(selectMode(h.Cfg.App.Debug))
+	gin.SetMode(selectMode(config.Get().App.Debug))
 
 	// Initialize the router
 	router := gin.New()
@@ -47,7 +42,6 @@ func (h *Handler) SetupRouter() *gin.Engine {
 	router.Use(cors.Default())
 	router.Use(gin.Recovery())
 	router.Use(middleware.SomeMiddleWare())
-	h.RegisterHexaRoutes(router)
 
 	return router
 }
@@ -56,7 +50,7 @@ func (h *Handler) SetupRouter() *gin.Engine {
 func (h *Handler) StartServer() {
 
 	server := &http.Server{
-		Addr:         ":" + strconv.Itoa(h.Cfg.App.Port),
+		Addr:         ":" + strconv.Itoa(config.Get().App.Port),
 		Handler:      h.SetupRouter(),
 		WriteTimeout: WriteTimeout,
 		ReadTimeout:  ReadTimeout,

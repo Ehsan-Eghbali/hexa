@@ -2,24 +2,22 @@ package app
 
 import (
 	"context"
+	"dariush/config"
+	"dariush/internal/core/infrastructure/db"
+	"dariush/internal/presentation/http/handler/api"
+	logutil "dariush/pkg/logutils"
 	"fmt"
-	"github.com/sirupsen/logrus"
-	"hexagonal/internal/adapter/http/handler/api"
-	"hexagonal/internal/adapter/repository/task"
-	"hexagonal/internal/core/infrastructure/config"
-	"hexagonal/internal/core/infrastructure/db"
-	logutil "hexagonal/internal/core/infrastructure/log"
-	"hexagonal/internal/core/service/taskSRV"
 	"os"
 	"sync"
+
+	"github.com/sirupsen/logrus"
 )
 
 // App encapsulates the application's core services.
 type App struct {
-	cfg         *config.Config
-	DBRegistry  *db.Registry
-	TaskService *taskSRV.TaskService
-	Handler     *api.Handler
+	cfg        *config.Config
+	DBRegistry *db.Registry
+	Handler    *api.Handler
 
 	sync.WaitGroup
 }
@@ -34,21 +32,18 @@ func Initialize(ctx context.Context) (*App, error) {
 		return nil, fmt.Errorf("error loading config: %w", err)
 	}
 
-	cfg := config.Instance
+	cfg := config.Get()
 	// Initialize dbPO registry
-	dbRegistry, err := db.NewDBRegistry(cfg)
+	dbRegistry, err := db.NewDBRegistry(ctx, cfg)
 	if err != nil {
 		logutil.LogOnce("err_load_db_registry", err, nil)
 		return nil, err
 	}
 	logutil.LogSuccess("load_db_registry", nil)
 
-	taskRepo := task.NewRedisTaskRepository(dbRegistry)
-	taskService := taskSRV.NewTaskService(taskRepo)
 	app.DBRegistry = dbRegistry
-	app.TaskService = taskService
 
-	app.Handler = api.CreateHandler(cfg, taskService)
+	app.Handler = api.CreateHandler()
 	return app, nil
 
 }

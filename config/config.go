@@ -2,13 +2,18 @@ package config
 
 import (
 	"fmt"
-	"github.com/spf13/viper"
 	"os"
+
+	"github.com/spf13/viper"
 )
 
 type Config struct {
 	App       AppConfig        `mapstructure:"app"`
 	Databases []DatabaseConfig `mapstructure:"databases"`
+}
+
+func Get() *Config {
+	return instance
 }
 
 type AppConfig struct {
@@ -25,7 +30,7 @@ type DatabaseConfig struct {
 	Name     string `mapstructure:"name"`
 }
 
-var Instance *Config
+var instance *Config
 
 // LoadConfig initializes Viper and loads the configuration
 func LoadConfig() error {
@@ -51,7 +56,7 @@ func LoadConfig() error {
 	viper.AutomaticEnv() // Automatically override config values with environment variables
 
 	// Now you can unmarshal the config
-	if err := viper.Unmarshal(&Instance); err != nil {
+	if err := viper.Unmarshal(&instance); err != nil {
 		return err
 	}
 

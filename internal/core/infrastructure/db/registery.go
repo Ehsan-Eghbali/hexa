@@ -1,27 +1,29 @@
 package db
 
 import (
+	"context"
+	"dariush/config"
+	"dariush/internal/core/port"
 	"database/sql"
 	"fmt"
-	"github.com/go-redis/redis/v8"
-	"hexagonal/internal/core/infrastructure/config"
-	"hexagonal/internal/core/port/dbPO"
 	"log"
+
+	"github.com/go-redis/redis/v8"
 )
 
 type Registry struct {
-	databases map[string]dbPO.Database
+	databases map[string]port.Database
 }
 
 // NewDBRegistry creates a new DBRegistry and registers all dbPO adapters.
-func NewDBRegistry(cfg *config.Config) (*Registry, error) {
+func NewDBRegistry(ctx context.Context, cfg *config.Config) (*Registry, error) {
 	registry := &Registry{
-		databases: make(map[string]dbPO.Database),
+		databases: make(map[string]port.Database),
 	}
 
 	// Register all databases from config
 	for _, dbConfig := range cfg.Databases {
-		var db dbPO.Database
+		var db port.Database
 		switch dbConfig.Type {
 		case "postgres":
 			db = &PostgresAdapter{Config: &PostgresConfig{
@@ -42,13 +44,8 @@ func NewDBRegistry(cfg *config.Config) (*Registry, error) {
 		}
 
 		// Connect to the dbPO
-		if err := db.Connect(); err != nil {
+		if err := db.Connect(ctx); err != nil {
 			return nil, fmt.Errorf("failed to connect to %s: %w", dbConfig.Type, err)
-		}
-
-		// Run migrations if necessary
-		if err := db.RunMigrations(); err != nil {
-			return nil, fmt.Errorf("failed to run migrations for %s: %w", dbConfig.Type, err)
 		}
 
 		registry.databases[dbConfig.Type] = db
@@ -57,7 +54,7 @@ func NewDBRegistry(cfg *config.Config) (*Registry, error) {
 }
 
 // GetDatabase retrieves a registered dbPO by type.
-func (r *Registry) GetDatabase(dbType string) (dbPO.Database, error) {
+func (r *Registry) GetDatabase(dbType string) (port.Database, error) {
 	db, exists := r.databases[dbType]
 	if !exists {
 		return nil, fmt.Errorf("dbPO of type %s not registered", dbType)

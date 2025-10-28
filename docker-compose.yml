@@ -1,0 +1,157 @@
+version: '3.8'
+
+networks:
+  voip_net:
+    driver: bridge
+
+volumes:
+  postgres_data: {}
+  minio_data: {}
+
+services:
+  kafka:
+    image: bitnami/kafka:latest
+    container_name: kafka
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      - KAFKA_ENABLE_KRAFT=yes
+      - KAFKA_CFG_NODE_ID=1
+      - KAFKA_CFG_PROCESS_ROLES=broker,controller
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
+      - KAFKA_KRAFT_CLUSTER_ID=abcdefghijklmnopqrstuvwx1234567890
+
+      # Listeners
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://0.0.0.0:29092,CONTROLLER://kafka:9093
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://localhost:29092
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+
+    networks:
+      - emqx-kafka-net
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "8081:8080"
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=local
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092
+    networks:
+      - emqx-kafka-net
+    depends_on:
+      - kafka
+
+  minio:
+    image: minio/minio:RELEASE.2024-09-22T00-00-00Z
+    container_name: minio
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin123
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - voip_net
+    restart: unless-stopped
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.1
+    container_name: node-exporter
+    pid: host
+    network_mode: bridge
+    ports:
+      - "9100:9100"
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    container_name: prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - voip_net
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16
+    container_name: postgres
+    environment:
+      - POSTGRES_DB=dariush
+      - POSTGRES_USER=dariush
+      - POSTGRES_PASSWORD=dariush
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - voip_net
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    container_name: dariush-app
+    depends_on:
+      - redpanda
+      - postgres
+      - freeswitch
+    environment:
+      - BART_ENV=local
+      - APP_PORT=8080
+      - KAFKA_BROKERS=redpanda:9092
+      - POSTGRES_DSN=postgres://dariush:dariush@postgres:5432/dariush?sslmode=disable
+      - ESL_HOST=freeswitch
+      - ESL_PORT=8021
+      - ESL_PASSWORD=ClueCon
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin123
+    networks:
+      - voip_net
+    ports:
+      - "8080:8080"
+      - "2112:2112"
+    restart: unless-stopped
+
+  migrate:
+    image: migrate/migrate:v4.17.1
+    container_name: migrate
+    depends_on:
+      - postgres
+    command: ["-path", "/migrations", "-database", "postgres://dariush:dariush@postgres:5432/dariush?sslmode=disable", "up"]
+    volumes:
+      - ./migrations:/migrations:ro
+    networks:
+      - voip_net
+    restart: "no"
+
+  freeswitch:
+    image: signalwire/freeswitch-public-base:latest
+    container_name: freeswitch
+    restart: always
+    networks:
+      - voip_net
+    ports:
+      - "5060:5060/udp"
+      - "5080:5080/udp"
+      - "10000-50000:10000-50000/udp"
+      - "8021:8021"
+    volumes:
+      - ./conf:/etc/freeswitch
+      - ./log:/var/log/freeswitch
+    cap_add:
+      - SYS_NICE
+      - NET_ADMIN
